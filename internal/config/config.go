@@ -42,7 +42,7 @@ func LoadFromEnv() (*Config, error) {
 
 	// Check if using single bot format (no BOT_COUNT, just BOT_*)
 	if os.Getenv("BOT_TOKEN") != "" {
-		bot, err := loadBotFromEnv("")
+		bot, err := loadBotFromEnv("BOT_")
 		if err != nil {
 			return nil, err
 		}
