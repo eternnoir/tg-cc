@@ -9,15 +9,17 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
+
 	"github.com/eternnoir/tg-cc/internal/bot"
 	"github.com/eternnoir/tg-cc/internal/config"
 )
 
 var (
-	version    = "dev"
-	configPath = flag.String("config", "config.yaml", "Path to configuration file")
-	showHelp   = flag.Bool("help", false, "Show help message")
-	showVer    = flag.Bool("version", false, "Show version")
+	version = "dev"
+	envFile = flag.String("env", ".env", "Path to .env file")
+	showHelp = flag.Bool("help", false, "Show help message")
+	showVer  = flag.Bool("version", false, "Show version")
 )
 
 func main() {
@@ -33,8 +35,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load configuration
-	cfg, err := config.Load(*configPath)
+	// Load .env file (ignore error if file doesn't exist)
+	if err := godotenv.Load(*envFile); err != nil {
+		log.Printf("No .env file found at %s, using environment variables", *envFile)
+	}
+
+	// Load configuration from environment
+	cfg, err := config.LoadFromEnv()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -84,18 +91,24 @@ Usage:
   tg-cc [options]
 
 Options:
-  -config string    Path to configuration file (default "config.yaml")
-  -help             Show this help message
-  -version          Show version
+  -env string    Path to .env file (default ".env")
+  -help          Show this help message
+  -version       Show version
 
-Configuration File Format (YAML):
-  bots:
-    - name: "my-project-bot"
-      token: "YOUR_TELEGRAM_BOT_TOKEN"
-      working_dir: "/path/to/your/project"
-      whitelist:
-        - 123456789  # Telegram user ID
-        - 987654321
+Environment Variables (Single Bot):
+  BOT_TOKEN        Telegram bot token (required)
+  BOT_WORKING_DIR  Working directory for Claude Code (required)
+  BOT_NAME         Bot name (optional, default: "bot")
+  BOT_WHITELIST    Comma-separated list of allowed Telegram user IDs (optional)
+
+Environment Variables (Multiple Bots):
+  BOT_COUNT          Number of bots (optional, auto-detected if not set)
+  BOT_1_TOKEN        First bot's Telegram token
+  BOT_1_WORKING_DIR  First bot's working directory
+  BOT_1_NAME         First bot's name (optional)
+  BOT_1_WHITELIST    First bot's whitelist (optional)
+  BOT_2_TOKEN        Second bot's Telegram token
+  ... and so on
 
 Bot Commands:
   /start   - Start the bot and show welcome message
@@ -106,7 +119,7 @@ Bot Commands:
 
 Environment Requirements:
   - Claude CLI must be installed and configured
-  - Each working_dir must exist and be accessible
+  - Each working directory must exist and be accessible
 
 For more information, visit: https://github.com/eternnoir/tg-cc`)
 }

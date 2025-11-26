@@ -8,6 +8,7 @@ Telegram Claude Code Integration - 透過 Telegram Bot 與 Claude Code 互動的
 - **Session 管理**: 支援延續、清除和重新建立對話 Session
 - **白名單控制**: 可設定允許使用 Bot 的 Telegram 用戶 ID
 - **並行運行**: 支援同時運行多個 Bot
+- **環境變數配置**: 使用 `.env` 檔案或環境變數進行配置
 
 ## 系統需求
 
@@ -34,19 +35,44 @@ go install ./cmd/tg-cc
 1. 複製範例設定檔:
 
 ```bash
-cp config.example.yaml config.yaml
+cp .env.example .env
 ```
 
-2. 編輯 `config.yaml`:
+2. 編輯 `.env` 檔案:
 
-```yaml
-bots:
-  - name: "my-project-bot"
-    token: "YOUR_TELEGRAM_BOT_TOKEN"
-    working_dir: "/path/to/your/project"
-    whitelist:
-      - 123456789  # 你的 Telegram User ID
+### 單一 Bot 配置
+
+```env
+BOT_TOKEN=your_telegram_bot_token_here
+BOT_WORKING_DIR=/path/to/your/project
+BOT_NAME=my-project-bot
+BOT_WHITELIST=123456789,987654321
 ```
+
+### 多個 Bot 配置
+
+```env
+BOT_1_TOKEN=first_bot_token
+BOT_1_WORKING_DIR=/path/to/first/project
+BOT_1_NAME=frontend-bot
+BOT_1_WHITELIST=123456789
+
+BOT_2_TOKEN=second_bot_token
+BOT_2_WORKING_DIR=/path/to/second/project
+BOT_2_NAME=backend-bot
+BOT_2_WHITELIST=123456789,987654321
+```
+
+### 環境變數說明
+
+| 變數 | 說明 | 必填 |
+|------|------|------|
+| `BOT_TOKEN` | Telegram Bot Token | 是 |
+| `BOT_WORKING_DIR` | Claude Code 工作目錄 | 是 |
+| `BOT_NAME` | Bot 名稱 | 否 |
+| `BOT_WHITELIST` | 允許的用戶 ID（逗號分隔） | 否 |
+
+多 Bot 模式使用 `BOT_1_*`、`BOT_2_*` 等前綴。
 
 ### 取得 Telegram User ID
 
@@ -59,22 +85,28 @@ bots:
 1. 在 Telegram 中搜尋 [@BotFather](https://t.me/botfather)
 2. 發送 `/newbot` 指令
 3. 按照指示設定 Bot 名稱
-4. 複製取得的 Token 到設定檔
+4. 複製取得的 Token 到 `.env` 檔案
 
 ## 使用方式
 
 ```bash
-# 使用預設設定檔 (config.yaml)
+# 使用預設 .env 檔案
 ./tg-cc
 
-# 指定設定檔
-./tg-cc -config /path/to/config.yaml
+# 指定 .env 檔案路徑
+./tg-cc -env /path/to/.env
 
 # 顯示版本
 ./tg-cc -version
 
 # 顯示說明
 ./tg-cc -help
+```
+
+也可以直接設定環境變數而不使用 `.env` 檔案:
+
+```bash
+BOT_TOKEN=xxx BOT_WORKING_DIR=/path/to/project ./tg-cc
 ```
 
 ## Bot 指令
@@ -99,24 +131,24 @@ bots:
 - "幫我找出所有的 TODO 註解"
 - "解釋 main.go 的功能"
 
-## 設定範例：多個 Bot
+## Docker 使用
 
-```yaml
-bots:
-  # 前端專案
-  - name: "frontend-bot"
-    token: "BOT_TOKEN_1"
-    working_dir: "/home/user/projects/frontend"
-    whitelist:
-      - 123456789
+```dockerfile
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY . .
+RUN go build -o tg-cc ./cmd/tg-cc
 
-  # 後端專案
-  - name: "backend-bot"
-    token: "BOT_TOKEN_2"
-    working_dir: "/home/user/projects/backend"
-    whitelist:
-      - 123456789
-      - 987654321
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/tg-cc .
+CMD ["./tg-cc"]
+```
+
+```bash
+docker build -t tg-cc .
+docker run --env-file .env -v /path/to/project:/project tg-cc
 ```
 
 ## 注意事項

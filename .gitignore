@@ -16,8 +16,9 @@ tg-cc
 go.work
 
 # Configuration files with secrets
-config.yaml
-*.local.yaml
+.env
+.env.local
+.env.*.local
 
 # IDE
 .idea/
