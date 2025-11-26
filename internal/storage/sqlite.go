@@ -118,11 +118,12 @@ func (s *SQLiteStorage) LoadSession(chatID int64, botName string) (*SessionRecor
 }
 
 // LoadAllSessions loads all session records for a specific bot
+// Only returns sessions with non-empty session IDs
 func (s *SQLiteStorage) LoadAllSessions(botName string) ([]SessionRecord, error) {
 	query := `
 	SELECT chat_id, bot_name, session_id, updated_at
 	FROM sessions
-	WHERE bot_name = ?
+	WHERE bot_name = ? AND session_id != ''
 	`
 
 	rows, err := s.db.Query(query, botName)

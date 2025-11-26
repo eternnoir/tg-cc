@@ -61,7 +61,14 @@ func (m *SessionManager) loadSessionsFromStorage() {
 		return
 	}
 
+	loadedCount := 0
 	for _, record := range records {
+		// Skip empty session IDs - they have no value for resuming
+		if record.SessionID == "" {
+			logger.Sugar.Debugf("[session] Skipping empty session for chat %d", record.ChatID)
+			continue
+		}
+
 		session := &Session{
 			chatID:          record.ChatID,
 			workingDir:      m.workingDir,
@@ -70,10 +77,11 @@ func (m *SessionManager) loadSessionsFromStorage() {
 			onSessionUpdate: m.saveSessionToStorage,
 		}
 		m.sessions[record.ChatID] = session
+		loadedCount++
 		logger.Sugar.Debugf("[session] Restored session for chat %d: %s", record.ChatID, record.SessionID)
 	}
 
-	logger.Sugar.Infof("[session] Loaded %d sessions from storage for bot %s", len(records), m.botName)
+	logger.Sugar.Infof("[session] Loaded %d sessions from storage for bot %s", loadedCount, m.botName)
 }
 
 // saveSessionToStorage saves a session to the database
