@@ -1,0 +1,24 @@
+# tg-cc Configuration File
+# Copy this file to config.yaml and modify as needed
+
+bots:
+  # You can configure multiple bots, each pointing to a different project directory
+
+  - name: "my-project-bot"
+    # Get your bot token from @BotFather on Telegram
+    token: "YOUR_TELEGRAM_BOT_TOKEN_HERE"
+    # The directory where Claude Code will operate
+    working_dir: "/path/to/your/project"
+    # List of Telegram user IDs allowed to use this bot
+    # Leave empty to allow all users (not recommended for production)
+    # You can get your user ID by messaging @userinfobot on Telegram
+    whitelist:
+      - 123456789
+      - 987654321
+
+  # Example: Second bot for another project
+  # - name: "another-project-bot"
+  #   token: "ANOTHER_BOT_TOKEN"
+  #   working_dir: "/path/to/another/project"
+  #   whitelist:
+  #     - 123456789
