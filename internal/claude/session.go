@@ -12,15 +12,17 @@ import (
 	"sync"
 
 	"github.com/eternnoir/tg-cc/internal/logger"
+	"github.com/eternnoir/tg-cc/internal/storage"
 )
 
 // Session represents a Claude Code session for a specific chat
 type Session struct {
-	mu         sync.Mutex
-	chatID     int64
-	workingDir string
-	sessionID  string
-	claudeArgs []string
+	mu              sync.Mutex
+	chatID          int64
+	workingDir      string
+	sessionID       string
+	claudeArgs      []string
+	onSessionUpdate func(chatID int64, sessionID string) // Callback when session ID is updated
 }
 
 // SessionManager manages Claude Code sessions for different chats
@@ -29,14 +31,58 @@ type SessionManager struct {
 	sessions   map[int64]*Session
 	workingDir string
 	claudeArgs []string
+	botName    string
+	storage    *storage.SQLiteStorage
 }
 
 // NewSessionManager creates a new session manager for a working directory
-func NewSessionManager(workingDir string, claudeArgs []string) *SessionManager {
-	return &SessionManager{
+func NewSessionManager(workingDir string, claudeArgs []string, botName string, store *storage.SQLiteStorage) *SessionManager {
+	sm := &SessionManager{
 		sessions:   make(map[int64]*Session),
 		workingDir: workingDir,
 		claudeArgs: claudeArgs,
+		botName:    botName,
+		storage:    store,
+	}
+
+	// Load existing sessions from storage
+	if store != nil {
+		sm.loadSessionsFromStorage()
+	}
+
+	return sm
+}
+
+// loadSessionsFromStorage loads all sessions from the database
+func (m *SessionManager) loadSessionsFromStorage() {
+	records, err := m.storage.LoadAllSessions(m.botName)
+	if err != nil {
+		logger.Sugar.Errorf("[session] Failed to load sessions from storage: %v", err)
+		return
+	}
+
+	for _, record := range records {
+		session := &Session{
+			chatID:          record.ChatID,
+			workingDir:      m.workingDir,
+			sessionID:       record.SessionID,
+			claudeArgs:      m.claudeArgs,
+			onSessionUpdate: m.saveSessionToStorage,
+		}
+		m.sessions[record.ChatID] = session
+		logger.Sugar.Debugf("[session] Restored session for chat %d: %s", record.ChatID, record.SessionID)
+	}
+
+	logger.Sugar.Infof("[session] Loaded %d sessions from storage for bot %s", len(records), m.botName)
+}
+
+// saveSessionToStorage saves a session to the database
+func (m *SessionManager) saveSessionToStorage(chatID int64, sessionID string) {
+	if m.storage == nil {
+		return
+	}
+	if err := m.storage.SaveSession(chatID, m.botName, sessionID); err != nil {
+		logger.Sugar.Errorf("[session] Failed to save session to storage: %v", err)
 	}
 }
 
@@ -50,9 +96,10 @@ func (m *SessionManager) GetOrCreateSession(chatID int64) *Session {
 	}
 
 	session := &Session{
-		chatID:     chatID,
-		workingDir: m.workingDir,
-		claudeArgs: m.claudeArgs,
+		chatID:          chatID,
+		workingDir:      m.workingDir,
+		claudeArgs:      m.claudeArgs,
+		onSessionUpdate: m.saveSessionToStorage,
 	}
 	m.sessions[chatID] = session
 	return session
@@ -63,6 +110,13 @@ func (m *SessionManager) ClearSession(chatID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.sessions, chatID)
+
+	// Delete from storage
+	if m.storage != nil {
+		if err := m.storage.DeleteSession(chatID, m.botName); err != nil {
+			logger.Sugar.Errorf("[session] Failed to delete session from storage: %v", err)
+		}
+	}
 }
 
 // ResetSession resets the session for a chat (clears session ID but keeps the session)
@@ -74,6 +128,13 @@ func (m *SessionManager) ResetSession(chatID int64) {
 		session.mu.Lock()
 		session.sessionID = ""
 		session.mu.Unlock()
+	}
+
+	// Clear session ID in storage
+	if m.storage != nil {
+		if err := m.storage.ClearSessionID(chatID, m.botName); err != nil {
+			logger.Sugar.Errorf("[session] Failed to clear session ID in storage: %v", err)
+		}
 	}
 }
 
@@ -174,6 +235,10 @@ func (s *Session) SendMessage(ctx context.Context, message string) (string, erro
 			if resp.SessionID != "" {
 				s.sessionID = resp.SessionID
 				logger.Sugar.Debugf("[claude] Session ID set: %s", s.sessionID)
+				// Persist session ID to storage
+				if s.onSessionUpdate != nil {
+					s.onSessionUpdate(s.chatID, s.sessionID)
+				}
 			}
 		case "assistant":
 			// Assistant response content
@@ -194,6 +259,10 @@ func (s *Session) SendMessage(ctx context.Context, message string) (string, erro
 			if resp.SessionID != "" {
 				s.sessionID = resp.SessionID
 				logger.Sugar.Debugf("[claude] Session ID updated: %s", s.sessionID)
+				// Persist session ID to storage
+				if s.onSessionUpdate != nil {
+					s.onSessionUpdate(s.chatID, s.sessionID)
+				}
 			}
 		case "tool_use":
 			// Tool being used - we can show this as progress

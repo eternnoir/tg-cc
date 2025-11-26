@@ -16,6 +16,7 @@ import (
 	"github.com/eternnoir/tg-cc/internal/claude"
 	"github.com/eternnoir/tg-cc/internal/config"
 	"github.com/eternnoir/tg-cc/internal/logger"
+	"github.com/eternnoir/tg-cc/internal/storage"
 	"github.com/eternnoir/tg-cc/internal/whitelist"
 )
 
@@ -34,7 +35,7 @@ type Bot struct {
 }
 
 // New creates a new Bot instance
-func New(cfg config.BotConfig) (*Bot, error) {
+func New(cfg config.BotConfig, store *storage.SQLiteStorage) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(cfg.Token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot API: %w", err)
@@ -44,7 +45,7 @@ func New(cfg config.BotConfig) (*Bot, error) {
 		name:           cfg.Name,
 		api:            api,
 		whitelist:      whitelist.New(cfg.Whitelist),
-		sessionManager: claude.NewSessionManager(cfg.WorkingDir, cfg.ClaudeArgs),
+		sessionManager: claude.NewSessionManager(cfg.WorkingDir, cfg.ClaudeArgs, cfg.Name, store),
 		workingDir:     cfg.WorkingDir,
 		tempDir:        cfg.TempDir,
 	}, nil

@@ -19,7 +19,8 @@ type BotConfig struct {
 
 // Config represents the entire application configuration
 type Config struct {
-	Bots []BotConfig
+	Bots   []BotConfig
+	DBPath string // Path to SQLite database for session persistence
 }
 
 // LoadFromEnv reads configuration from environment variables
@@ -39,7 +40,13 @@ type Config struct {
 //	BOT_WHITELIST=123456789,987654321
 func LoadFromEnv() (*Config, error) {
 	cfg := &Config{
-		Bots: make([]BotConfig, 0),
+		Bots:   make([]BotConfig, 0),
+		DBPath: os.Getenv("DB_PATH"),
+	}
+
+	// Set default DB path if not specified
+	if cfg.DBPath == "" {
+		cfg.DBPath = "sessions.db"
 	}
 
 	// Check if using single bot format (no BOT_COUNT, just BOT_*)

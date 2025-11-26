@@ -13,6 +13,7 @@ import (
 	"github.com/eternnoir/tg-cc/internal/bot"
 	"github.com/eternnoir/tg-cc/internal/config"
 	"github.com/eternnoir/tg-cc/internal/logger"
+	"github.com/eternnoir/tg-cc/internal/storage"
 )
 
 var (
@@ -55,12 +56,21 @@ func main() {
 
 	logger.Sugar.Infof("Loaded configuration with %d bot(s)", len(cfg.Bots))
 
+	// Initialize SQLite storage for session persistence
+	store, err := storage.NewSQLiteStorage(cfg.DBPath)
+	if err != nil {
+		logger.Sugar.Fatalf("Failed to initialize storage: %v", err)
+	}
+	defer store.Close()
+
+	logger.Sugar.Infof("Session storage initialized at: %s", cfg.DBPath)
+
 	// Create bot manager
 	manager := bot.NewManager()
 
 	// Create bots from configuration
 	for _, botCfg := range cfg.Bots {
-		b, err := bot.New(botCfg)
+		b, err := bot.New(botCfg, store)
 		if err != nil {
 			logger.Sugar.Fatalf("Failed to create bot %s: %v", botCfg.Name, err)
 		}
@@ -107,6 +117,9 @@ Environment Variables (Single Bot):
   BOT_WORKING_DIR  Working directory for Claude Code (required)
   BOT_NAME         Bot name (optional, default: "bot")
   BOT_WHITELIST    Comma-separated list of allowed Telegram user IDs (optional)
+
+Storage:
+  DB_PATH          Path to SQLite database file (optional, default: "sessions.db")
 
 Environment Variables (Multiple Bots):
   BOT_COUNT          Number of bots (optional, auto-detected if not set)
